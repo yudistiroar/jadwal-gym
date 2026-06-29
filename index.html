@@ -3,232 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jadwal Gym Kuymenabungotot</title>
+    <title>Kuy Menabung Otot - Jadwal Gym Realtime</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Desain Pakaian (CSS) biar Elegan */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a24; /* Warna gelap ala gym modern */
-            color: #ffffff;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 30px 20px;
+        /* CSS VARIABEL & BASE STYLE */
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --primary: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --accent: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        h1 {
-            text-align: center;
-            color: #ff9f43; /* Warna oranye energetic */
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .subtitle {
-            text-align: center;
-            color: #a4b0be;
-            margin-bottom: 40px;
-            font-size: 1.1rem;
-        }
-        /* Desain Kotak Form */
-        .form-container {
-            background: #2f3542;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-            margin-bottom: 40px;
-        }
-        .form-container h3 {
-            margin-top: 0;
-            color: #ff9f43;
-            border-bottom: 2px solid #ff9f43;
-            padding-bottom: 8px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #ced6e0;
-        }
-        select, input {
-            width: 100%;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid #57606f;
-            background-color: #57606f;
-            color: white;
+
+        * {
             box-sizing: border-box;
-            font-size: 1rem;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            background-color: #ff9f43;
-            color: #1a1a24;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 2rem 1rem;
+            min-height: 100vh;
         }
-        button:hover {
-            background-color: #e68a2e;
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        /* Desain Tabel Elegan */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #2f3542;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-        }
-        th, td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #475366;
-        }
-        th {
-            background-color: #ff9f43;
-            color: #1a1a24;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        tr:hover {
-            background-color: #3e4453;
-        }
-        .hari-kolom {
-            font-weight: bold;
-            color: #ff9f43;
-            background-color: #252a34;
+
+        header {
             text-align: center;
-            font-size: 1.1rem;
+            margin-bottom: 2rem;
         }
-        .nama-peserta {
-            color: #2ed573; /* Warna hijau cerah untuk nama orang */
-            font-weight: bold;
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--primary), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
         }
-    </style>
-</head>
-<body>
 
-    <h1>Jadwal Gym Kuymenabungotot</h1>
-    <div class="subtitle" id="rentangTanggal">Loading tanggal minggu ini...</div>
+        #rentangTanggal {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
 
-    <div class="form-container">
-        <h3>Form Tambah Anggota Gym</h3>
-        <div class="form-group">
-            <label for="pilihHari">Pilih Hari:</label>
-            <select id="pilihHari">
-                <option value="Senin">Senin</option>
-                <option value="Selasa">Selasa</option>
-                <option value="Rabu">Rabu</option>
-                <option value="Kamis">Kamis</option>
-                <option value="Jumat">Jumat</option>
-                <option value="Sabtu">Sabtu</option>
-                <option value="Minggu">Minggu</option>
-            </select>
-        </div>
-        
-        <div class="form-group">
-            <label for="pilihShift">Pilih Shift Waktu:</label>
-            <select id="pilihShift">
-                <option value="Pagi">Pagi (07:00 WIB)</option>
-                <option value="Sore">Sore (17:00 WIB)</option>
-            </select>
-        </div>
+        /* CARD NEXT WORKOUT */
+        .next-workout-card {
+            background: linear-gradient(135deg, #1e1b4b, #311042);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 2.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s ease;
+        }
 
-        <div class="form-group">
-            <label for="inputNama">Nama Kamu:</label>
-            <input type="text" id="inputNama" placeholder="Masukkan nama kamu, contoh: Yudistira">
-        </div>
+        .next-workout-icon {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
 
-        <button id="tombolIkut">Konfirmasi Ikut Gym</button>
-    </div>
+        /* FORM PANEL */
+        .form-panel {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
 
-    <table>
-        <thead>
-            <tr>
-                <th>Hari & Tanggal</th>
-                <th>Shift / Jam</th>
-                <th>Daftar Orang yang Ikut</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Senin">Senin<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Senin-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Senin-Sore">-</td>
-            </tr>
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: flex-end;
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Selasa">Selasa<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Selasa-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Selasa-Sore">-</td>
-            </tr>
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Rabu">Rabu<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Rabu-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Rabu-Sore">-</td>
-            </tr>
+        .form-group label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Kamis">Kamis<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Kamis-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Kamis-Sore">-</td>
-            </tr>
+        .form-control {
+            background-color: var(--bg-input);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: var(--transition);
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Jumat">Jumat<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Jumat-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Jumat-Sore">-</td>
-            </tr>
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Sabtu">Sabtu<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Sabtu-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Sabtu-Sore">-</td>
-            </tr>
+        .btn {
+            background-color: var(--primary);
+            color: #000;
+            font-weight: 600;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
 
-            <tr>
-                <td class="hari-kolom" rowspan="2" id="tgl-Minggu">Minggu<br><small>-</small></td>
-                <td>Pagi (07:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Minggu-Pagi">-</td>
-            </tr>
-            <tr>
-                <td>Sore (17:00 WIB)</td>
-                <td class="nama-peserta" id="peserta-Minggu-Sore">-</td>
-            </tr>
-        </tbody>
-    </table>
+        .btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+        }
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js"></script>
-</body>
-</html>
+        /* GRID JADWAL CARD MODERN */
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .day-card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .day-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+            border-color: rgba(56, 189, 248, 0.2);
+        }
+
+        .day-card.today {
+            border: 2px solid var(--primary);
+        }
+
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 0.75rem;
+        }
+
+        .day-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .day-date {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .badge-today {
+            background-color: var(--primary);
+            color: #000;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+        }
+
+        /* SHIFT CONTAINER */
+        .shift-block {
+            background-color: rgba(255,255,255,0.02);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        .shift-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .shift-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Progress Bar Kapasitas */
+        .progress-container {
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            height: 6px;
+            width: 100%;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background-color: var(--success);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .progress-bar.warning { background-color: #f59e0b; }
+        .progress-bar.danger { background-color: var(--accent); }
+
+        /* Daftar Peserta */
+        .participant-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 24px;
+        }
+
+        .participant-tag {
+            background-color: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .participant-tag:hover {
+            background-color: rgba(244, 63, 94, 0.15);
+            color: var(--accent);
+            border-color: rgba(244, 63, 94, 0.3);
+        }
+
+        .participant-tag:hover i::before {
+            content: "\f2ed"; 
+        }
+
+        .empty-state {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* MODAL DIALOG CUSTOM */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0; pointer-events: none;
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active {
+            opacity: 1; pointer-events: auto;
+        }
+
+        .modal-box {
+            background-color: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            text-align: center
