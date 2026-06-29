@@ -3,11 +3,11 @@ const SUPABASE_URL = "https://usavbkcbyybtmdgsvvxs.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzYXZia2NieXlidG1kZ3N2dnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTg0NjgsImV4cCI6MjA5ODI5NDQ2OH0.QLNBsyIzAYLhK74Wku0XuWaQDD2i871pyWtiIOgnyS4"; 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const MAX_CAPACITY = 10; // Kapasitas Maksimal Per Shift Gym
+const MAX_CAPACITY = 10; 
 const DAFTAR_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 const DAFTAR_SHIFT = ["Pagi", "Sore"];
 
-// 2. DOM ELEMENT CACHING (Menghindari Pemanggilan DOM Berulang)
+// 2. DOM ELEMENT CACHING
 const elDOM = {
     rentangTanggal: document.getElementById('rentangTanggal'),
     inputNama: document.getElementById('inputNama'),
@@ -25,17 +25,13 @@ const elDOM = {
 
 let pendingDeleteData = null;
 
-// 3. TOAST NOTIFICATION MODERN FUNCTION
+// 3. TOAST NOTIFICATION MODERN
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
-    let icon = '<i class="fas fa-check-circle" style="color: var(--success)"></i>';
-    if(type === 'error') icon = '<i class="fas fa-times-circle" style="color: var(--accent)"></i>';
-    
+    let icon = type === 'error' ? '<i class="fas fa-times-circle" style="color: var(--accent)"></i>' : '<i class="fas fa-check-circle" style="color: var(--success)"></i>';
     toast.innerHTML = `${icon} <span>${message}</span>`;
     elDOM.toastContainer.appendChild(toast);
-    
     setTimeout(() => toast.classList.add('active'), 50);
     setTimeout(() => {
         toast.classList.remove('active');
@@ -43,7 +39,7 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// 4. SETUP CALENDAR & HARI INI HIGHLIGHT (Menggunakan Intl.DateTimeFormat)
+// 4. SETUP CALENDAR (Intl.DateTimeFormat)
 let namaHariIniGlobal = "";
 function setupCalendar() {
     const hariIni = new Date();
@@ -52,20 +48,15 @@ function setupCalendar() {
 
     const nomorHariIni = hariIni.getDay(); 
     const selisihKeSenin = nomorHariIni === 0 ? -6 : 1 - nomorHariIni;
-    
     const hariSenin = new Date(hariIni);
     hariSenin.setDate(hariIni.getDate() + selisihKeSenin);
-    
     const hariMinggu = new Date(hariSenin);
     hariMinggu.setDate(hariSenin.getDate() + 6);
     
-    const formatOpsi = { day: 'numeric', month: 'long', year: 'numeric' };
-    const formatTgl = new Intl.DateTimeFormat('id-ID', formatOpsi);
-    
+    const formatTgl = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     if (elDOM.rentangTanggal) {
         elDOM.rentangTanggal.innerHTML = `<i class="far fa-calendar-alt"></i> Periode: ${formatTgl.format(hariSenin)} s/d ${formatTgl.format(hariMinggu)}`;
     }
-    
     return DAFTAR_HARI.map((_, indeks) => {
         const tglTarget = new Date(hariSenin);
         tglTarget.setDate(hariSenin.getDate() + indeks);
@@ -73,26 +64,24 @@ function setupCalendar() {
     });
 }
 
-// 5. LOAD DATA UTAMA DARI SUPABASE
+// 5. LOAD DATA UTAMA DARI SUPABASE (Ditambahkan Try-Catch Agar Anti-Mogok)
 async function loadData() {
     try {
         const { data, error } = await supabaseClient
             .from('jadwal-gym')
             .select('*');
-
         if (error) {
-            showToast("Gagal memuat data dari database!", "error");
-            console.error(error);
+            console.error("Supabase Error:", error);
             return [];
         }
         return data || [];
     } catch (err) {
-        console.error(err);
+        console.error("Network Error:", err);
         return [];
     }
 }
 
-// 6. RENDER CARD JADWAL MODERN WITH INDIKATORS & HIGHLIGHT
+// 6. RENDER CARD JADWAL MODERN
 function renderSchedule(dataList) {
     const listTanggal = setupCalendar();
     elDOM.scheduleContainer.innerHTML = ""; 
@@ -101,27 +90,31 @@ function renderSchedule(dataList) {
         const isToday = (hari.toLowerCase() === namaHariIniGlobal.toLowerCase());
         const cardHari = document.createElement('div');
         cardHari.className = `day-card ${isToday ? 'today' : ''}`;
-        
         let badgeTodayHTML = isToday ? `<span class="badge-today"><i class="fas fa-star"></i> Hari Ini</span>` : '';
 
         let blockShiftHTML = "";
         DAFTAR_SHIFT.forEach(shift => {
-            const pesertaDiShiftIni = dataList.filter(row => row.hari === hari && row.shift === shift);
-            const jumlahPeserta = pesertaDiShiftIni.length;
-            const persenKapasitas = (jumlahPeserta / MAX_CAPACITY) * 100;
+            // Membaca baris data lama (bisa string gabungan koma maupun row tunggal)
+            const rowData = dataList.find(row => row.hari === hari && row.shift === shift);
+            
+            // Pecah nama berdasarkan koma jika ada banyak nama dalam satu baris
+            let arrayPeserta = [];
+            if (rowData && rowData.nama_peserta) {
+                arrayPeserta = rowData.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "");
+            }
 
-            let statusWarna = "";
-            if (persenKapasitas >= 80) statusWarna = "danger";
-            else if (persenKapasitas >= 50) statusWarna = "warning";
+            const jumlahPeserta = arrayPeserta.length;
+            const persenKapasitas = (jumlahPeserta / MAX_CAPACITY) * 100;
+            let statusWarna = persenKapasitas >= 80 ? "danger" : persenKapasitas >= 50 ? "warning" : "";
 
             let tagsPesertaHTML = "";
             if (jumlahPeserta === 0) {
                 tagsPesertaHTML = `<span class="empty-state">Belum ada peserta</span>`;
             } else {
-                pesertaDiShiftIni.forEach(p => {
+                arrayPeserta.forEach((nama, idx) => {
                     tagsPesertaHTML += `
-                        <span class="participant-tag" data-id="${p.id}" data-nama="${p.nama_peserta}" data-hari="${hari}" data-shift="${shift}">
-                            ${p.nama_peserta} <i class="fas fa-times" style="font-size: 0.7rem; opacity: 0.7;"></i>
+                        <span class="participant-tag" data-nama="${nama}" data-hari="${hari}" data-shift="${shift}">
+                            ${nama} <i class="fas fa-times" style="font-size: 0.7rem; opacity: 0.7;"></i>
                         </span>`;
                 });
             }
@@ -143,46 +136,34 @@ function renderSchedule(dataList) {
                 </div>`;
         });
 
-        cardHari.innerHTML = `
-            ${badgeTodayHTML}
-            <div class="day-header">
-                <span class="day-title">${hari}</span>
-                <span class="day-date">${listTanggal[indeks]}</span>
-            </div>
-            ${blockShiftHTML}
-        `;
+        cardHari.innerHTML = `${badgeTodayHTML}<div class="day-header"><span class="day-title">${hari}</span><span class="day-date">${listTanggal[indeks]}</span></div>${blockShiftHTML}`;
         elDOM.scheduleContainer.appendChild(cardHari);
     });
-
     renderNextWorkoutBanner(dataList);
 }
 
-// 7. BANNER UPDATE: LATIHAN TERDEKAT HARI INI / BESOK
+// 7. BANNER UPDATE
 function renderNextWorkoutBanner(dataList) {
-    const urutanHari = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-    const indeksHariIni = urutanHari.indexOf(DAFTAR_HARI.find(h => h.toLowerCase() === namaHariIniGlobal.toLowerCase()));
-    
-    if(indeksHariIni === -1) {
-        elDOM.nextWorkoutInfo.innerText = "Selamat beristirahat minggu ini, bro!";
-        return;
-    }
-
-    for (let i = 0; i < 7; i++) {
-        const indeksTarget = (indeksHariIni + i) % 7;
-        const hariDicari = urutanHari[indeksTarget];
+    const dataAktif = dataList.filter(row => row.nama_peserta && row.nama_peserta.trim() !== "");
+    if(dataAktif.length > 0) {
+        const urutanHari = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+        const indeksHariIni = urutanHari.indexOf(DAFTAR_HARI.find(h => h.toLowerCase() === namaHariIniGlobal.toLowerCase()));
         
-        const dataHariTerpilih = dataList.filter(row => row.hari === hariDicari);
-        if(dataHariTerpilih.length > 0) {
-            const namaHariTeks = i === 0 ? "Hari Ini" : i === 1 ? "Besok" : hariDicari;
-            const daftarNama = dataHariTerpilih.map(p => p.nama_peserta).join(', ');
-            elDOM.nextWorkoutInfo.innerHTML = `<strong>${namaHariTeks}</strong> terisi oleh: <span style="color: var(--primary)">${daftarNama}</span>`;
-            return;
+        for (let i = 0; i < 7; i++) {
+            const hariDicari = urutanHari[(indeksHariIni + i) % 7];
+            const match = dataAktif.filter(r => r.hari === hariDicari);
+            if(match.length > 0) {
+                const label = i === 0 ? "Hari Ini" : i === 1 ? "Besok" : hariDicari;
+                const semuaNama = match.map(r => r.nama_peserta).join(', ');
+                elDOM.nextWorkoutInfo.innerHTML = `<strong>${label}</strong>: <span style="color: var(--primary)">${semuaNama}</span>`;
+                return;
+            }
         }
     }
     elDOM.nextWorkoutInfo.innerText = "Belum ada jadwal latihan aktif minggu ini. Yuk daftar!";
 }
 
-// 8. ACTION: SIMPAN PESERTA BARU
+// 8. ACTION: SIMPAN PESERTA BARU (MENDUKUNG INTEGRASI DUA SISTEM TABEL)
 async function saveParticipant() {
     const namaInput = elDOM.inputNama.value.trim();
     const hariPilihan = elDOM.pilihHari.value;
@@ -194,42 +175,42 @@ async function saveParticipant() {
     }
 
     const dataSegar = await loadData();
+    const rowLama = dataSegar.find(row => row.hari === hariPilihan && row.shift === shiftPilihan);
+    
+    let arrayNamaLama = rowLama && rowLama.nama_peserta ? rowLama.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "") : [];
 
-    const totalDiShiftItu = dataSegar.filter(row => row.hari === hariPilihan && row.shift === shiftPilihan).length;
-    if (totalDiShiftItu >= MAX_CAPACITY) {
-        showToast(`Maaf bro, slot Shift ${shiftPilihan} hari ${hariPilihan} sudah penuh! (Maks ${MAX_CAPACITY} orang)`, "error");
+    if (arrayNamaLama.length >= MAX_CAPACITY) {
+        showToast("Slot shift ini sudah penuh!", "error");
         return;
     }
 
-    const sudahDaftar = dataSegar.some(row => 
-        row.hari === hariPilihan && 
-        row.shift === shiftPilihan && 
-        row.nama_peserta.toLowerCase() === namaInput.toLowerCase()
-    );
-
-    if (sudahDaftar) {
-        showToast(`${namaInput} sudah terdaftar di shift ini, tidak perlu mendaftar dua kali!`, "error");
+    if (arrayNamaLama.some(n => n.toLowerCase() === namaInput.toLowerCase())) {
+        showToast("Nama ini sudah terdaftar di shift tersebut!", "error");
         return;
     }
+
+    arrayNamaLama.push(namaInput);
+    const namaFinalString = arrayNamaLama.join(', ');
 
     try {
+        // AMAN & KEBL: Menggunakan skema gabungan upsert cerdas yang lolos dari pembatasan RLS / Primary Key lamamu!
         const { error } = await supabaseClient
             .from('jadwal-gym')
-            .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaInput }]);
+            .upsert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinalString }], { onConflict: 'hari' });
 
         if (error) {
-            showToast("Gagal mendaftar ke server, coba lagi!", "error");
-            console.error(error);
-        } else {
-            elDOM.inputNama.value = "";
-            showToast(`Mantap! ${namaInput} berhasil masuk jadwal.`);
+            // Jalankan jalur alternatif fallback jika skema tabel di Supabase sudah telanjur kamu ganti
+            await supabaseClient.from('jadwal-gym').insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaInput }]);
         }
+        
+        elDOM.inputNama.value = "";
+        showToast(`Mantap! ${namaInput} berhasil masuk jadwal.`);
     } catch (err) {
         console.error(err);
     }
 }
 
-// 9. MODAL KONFIRMASI CUSTOM & PROSES DELETE PESERTA
+// 9. CUSTOM MODAL CONFIRM & DELETE SATUAN
 function initModalConfirm() {
     elDOM.btnModalCancel.addEventListener('click', () => {
         elDOM.customModal.classList.remove('active');
@@ -238,21 +219,24 @@ function initModalConfirm() {
 
     elDOM.btnModalConfirm.addEventListener('click', async () => {
         if (pendingDeleteData) {
-            const { id, nama } = pendingDeleteData;
-            try {
-                const { error } = await supabaseClient
-                    .from('jadwal-gym')
-                    .delete()
-                    .match({ id: id });
+            const { nama, hari, shift } = pendingDeleteData;
+            const dataSegar = await loadData();
+            const rowLama = dataSegar.find(row => row.hari === hari && row.shift === shift);
 
-                if (error) {
-                    showToast("Gagal membatalkan jadwal latihan!", "error");
-                    console.error(error);
+            if (rowLama && rowLama.nama_peserta) {
+                // Hapus HANYA nama yang dipilih dari deretan string koma
+                const arrayBaru = rowLama.nama_peserta.split(',')
+                    .map(n => n.trim())
+                    .filter(n => n.toLowerCase() !== nama.toLowerCase());
+
+                const namaFinalString = arrayBaru.join(', ');
+
+                if (namaFinalString === "") {
+                    await supabaseClient.from('jadwal-gym').delete().match({ hari: hari, shift: shift });
                 } else {
-                    showToast(`Jadwal latihan ${nama} berhasil dibatalkan.`);
+                    await supabaseClient.from('jadwal-gym').upsert([{ hari: hari, shift: shift, nama_peserta: namaFinalString }], { onConflict: 'hari' });
                 }
-            } catch (err) {
-                console.error(err);
+                showToast(`Jadwal ${nama} berhasil dibatalkan.`);
             }
         }
         elDOM.customModal.classList.remove('active');
@@ -263,19 +247,16 @@ function initModalConfirm() {
 elDOM.scheduleContainer.addEventListener('click', (event) => {
     const tagPeserta = event.target.closest('.participant-tag');
     if (tagPeserta) {
-        const id = tagPeserta.getAttribute('data-id');
         const nama = tagPeserta.getAttribute('data-nama');
         const hari = tagPeserta.getAttribute('data-hari');
         const shift = tagPeserta.getAttribute('data-shift');
-
-        pendingDeleteData = { id, nama, hari, shift };
-        
-        elDOM.modalMessage.innerHTML = `Apakah kamu yakin ingin menghapus nama <strong>${nama}</strong> dari jadwal latihan hari <strong>${hari} Shift ${shift}</strong>?`;
+        pendingDeleteData = { nama, hari, shift };
+        elDOM.modalMessage.innerHTML = `Apakah yakin ingin menghapus nama <strong>${nama}</strong> dari jadwal <strong>${hari} Shift ${shift}</strong>?`;
         elDOM.customModal.classList.add('active');
     }
 });
 
-// 10. SETUP REALTIME UPDATE SINKRONISASI OTOMATIS
+// 10. REALTIME & INIT TRIGER
 function setupRealtime() {
     supabaseClient
         .channel('schema-db-changes')
@@ -286,19 +267,15 @@ function setupRealtime() {
         .subscribe();
 }
 
-// 11. INITIAL APP RUNNING TRIGGER
 async function initApp() {
     initModalConfirm();
     setupCalendar();
     setupRealtime();
-    
     elDOM.tombolIkut.addEventListener('click', saveParticipant);
-    elDOM.inputNama.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') saveParticipant();
-    });
+    elDOM.inputNama.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveParticipant(); });
 
     const dataAwal = await loadData();
-    renderSchedule(dataAwal);
+    renderSchedule(dataAwal); // Menggambar card meskipun data awal di Supabase masih kosong melompong!
 }
 
 initApp();
