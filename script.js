@@ -36,7 +36,7 @@ function aturKalenderOtomatis() {
 // 3. Fungsi Menarik Data dari Supabase ke Tabel HTML
 async function muatDataDariDatabase() {
     const { data, error } = await supabaseClient
-        .from('jadwal_gym')
+        .from('jadwal-gym')
         .select('*');
 
     if (error) {
@@ -80,12 +80,12 @@ tombolIkut.addEventListener('click', async function() {
 
     // Perbarui data di database Supabase
     await supabaseClient
-        .from('jadwal_gym')
+        .from('jadwal-gym')
         .delete()
         .match({ hari: hariPilihan, shift: shiftPilihan });
 
     const { error } = await supabaseClient
-        .from('jadwal_gym')
+        .from('jadwal-gym')
         .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinal }]);
 
     if (error) {
@@ -100,7 +100,7 @@ tombolIkut.addEventListener('click', async function() {
 // 5. FITUR UTAMA: Sinkronisasi Otomatis Real-time Tanpa Refresh!
 supabaseClient
     .channel('schema-db-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal_gym' }, () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal-gym' }, () => {
         muatDataDariDatabase(); // Jalankan fungsi penarik data tiap kali ada perubahan di awan
     })
     .subscribe();
