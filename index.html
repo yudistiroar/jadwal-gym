@@ -3,12 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jadwal Gym Bulanan</title>
+    <title>Jadwal Gym Saya</title>
 </head>
 <body>
 
     <h1>Jadwal Gym Minggu Ini</h1>
-    <p>Website ini akan menampilkan jadwal gym saya seminggu ke depan.</p>
+    <p>Selamat datang! Di sini kamu bisa melihat jadwal dan lokasi gym saya seminggu ke depan.</p>
+    <div style="margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; max-width: 400px;">
+        <h3>Isi / Ubah Jadwal Gym</h3>
+        
+        <label for="pilihHari">Pilih Hari:</label><br>
+        <select id="pilihHari">
+            <option value="Senin">Senin</option>
+            <option value="Selasa">Selasa</option>
+            <option value="Rabu">Rabu</option>
+            <option value="Kamis">Kamis</option>
+            <option value="Jumat">Jumat</option>
+            <option value="Sabtu">Sabtu</option>
+            <option value="Minggu">Minggu</option>
+        </select>
+        <br><br>
 
+        <label for="inputTempat">Tempat Gym:</label><br>
+        <input type="text" id="inputTempat" placeholder="Contoh: Ripped Gym Center">
+        <br><br>
+
+        <label for="inputJam">Jam Gym:</label><br>
+        <input type="text" id="inputJam" placeholder="Contoh: 08:00 - 10:00 WIB">
+        <br><br>
+
+        <button id="tombolUpdate">Update Jadwal</button>
+    </div>
+    <table border="1" cellpadding="10" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Hari</th>
+                <th>Tempat Gym</th>
+                <th>Jam</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Senin</td>
+                <td>Ripped Gym Center</td>
+                <td>08:00 - 10:00 WIB</td>
+            </tr>
+            <tr>
+                <td>Selasa</td>
+                <td>Istirahat (Rest Day)</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>Rabu</td>
+                <td>Gold Fitness</td>
+                <td>16:00 - 18:00 WIB</td>
+            </tr>
+            <tr>
+                <td>Kamis</td>
+                <td>Istirahat (Rest Day)</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>Jumat</td>
+                <td>Ripped Gym Center</td>
+                <td>19:00 - 21:00 WIB</td>
+            </tr>
+            <tr>
+                <td>Sabtu</td>
+                <td>Mega Gym Mall</td>
+                <td>09:00 - 11:00 WIB</td>
+            </tr>
+            <tr>
+                <td>Minggu</td>
+                <td>Istirahat (Rest Day)</td>
+                <td>-</td>
+            </tr>
+        </tbody>
+    </table>
+    <script src="script.js"></script>
 </body>
 </html>
