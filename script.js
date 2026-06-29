@@ -7,7 +7,7 @@ const MAX_CAPACITY = 10;
 const DAFTAR_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 const DAFTAR_SHIFT = ["Pagi", "Sore"];
 
-// 2. DOM ELEMENT CACHING (Menghindari Pemanggilan DOM Berulang)
+// 2. DOM ELEMENT CACHING
 const elDOM = {
     rentangTanggal: document.getElementById('rentangTanggal'),
     inputNama: document.getElementById('inputNama'),
@@ -39,7 +39,7 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// 4. SETUP CALENDAR (Intl.DateTimeFormat)
+// 4. SETUP CALENDAR
 let namaHariIniGlobal = "";
 function setupCalendar() {
     const hariIni = new Date();
@@ -64,21 +64,39 @@ function setupCalendar() {
     });
 }
 
-// 5. LOAD DATA UTAMA DARI SUPABASE (Kebal & Anti-Crash)
+// 5. LOAD DATA UTAMA DARI SUPABASE
 async function loadData() {
     try {
         const { data, error } = await supabaseClient
             .from('jadwal-gym')
             .select('*');
         if (error) {
-            console.error("Supabase Error saat Select:", error);
+            console.error("Supabase Error:", error);
             return [];
         }
         return data || [];
     } catch (err) {
-        console.error("Network Error saat Load:", err);
+        console.error("Network Error:", err);
         return [];
     }
+}
+
+// Fungsi pembantu untuk memecah data string gabungan menjadi array nama terpisah
+function uraiDataPeserta(rawString, targetShift) {
+    if (!rawString || typeof rawString !== 'string') return [];
+    const bagianShift = rawString.split('|');
+    for (let part of bagianShift) {
+        const pecahan = part.split(':');
+        if (pecahan[0] === targetShift && pecahan[1]) {
+            return pecahan[1].split(',').map(n => n.trim()).filter(n => n !== "");
+        }
+    }
+    return [];
+}
+
+// Fungsi pembantu untuk membungkus kembali array nama menjadi string panjang tunggal
+function bungkusDataPeserta(arrayPagi, arraySore) {
+    return `Pagi:${arrayPagi.join(',')}|Sore:${arraySore.join(',')}`;
 }
 
 // 6. RENDER CARD JADWAL MODERN
@@ -92,16 +110,13 @@ function renderSchedule(dataList) {
         cardHari.className = `day-card ${isToday ? 'today' : ''}`;
         let badgeTodayHTML = isToday ? `<span class="badge-today"><i class="fas fa-star"></i> Hari Ini</span>` : '';
 
+        // JAMINAN KEBAL: Cari baris data berdasarkan HARI saja (1 hari hanya ada 1 baris)
+        const rowData = dataList.find(row => row.hari === hari);
+        const rawString = rowData ? rowData.nama_peserta : "";
+
         let blockShiftHTML = "";
         DAFTAR_SHIFT.forEach(shift => {
-            // Cari data berdasarkan HARI saja agar aman dari aturan primary key lamamu
-            const rowData = dataList.find(row => row.hari === hari && row.shift === shift);
-            
-            let arrayPeserta = [];
-            if (rowData && rowData.nama_peserta) {
-                arrayPeserta = rowData.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "");
-            }
-
+            const arrayPeserta = uraiDataPeserta(rawString, shift);
             const jumlahPeserta = arrayPeserta.length;
             const persenKapasitas = (jumlahPeserta / MAX_CAPACITY) * 100;
             let statusWarna = persenKapasitas >= 80 ? "danger" : persenKapasitas >= 50 ? "warning" : "";
@@ -143,17 +158,20 @@ function renderSchedule(dataList) {
 
 // 7. BANNER UPDATE
 function renderNextWorkoutBanner(dataList) {
-    const dataAktif = dataList.filter(row => row.nama_peserta && row.nama_peserta.trim() !== "");
-    if(dataAktif.length > 0) {
-        const urutanHari = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-        const indeksHariIni = urutanHari.indexOf(DAFTAR_HARI.find(h => h.toLowerCase() === namaHariIniGlobal.toLowerCase()));
+    const urutanHari = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+    const indeksHariIni = urutanHari.indexOf(DAFTAR_HARI.find(h => h.toLowerCase() === namaHariIniGlobal.toLowerCase()));
+    
+    for (let i = 0; i < 7; i++) {
+        const hariDicari = urutanHari[(indeksHariIni + i) % 7];
+        const rowData = dataList.find(r => r.hari === hariDicari);
         
-        for (let i = 0; i < 7; i++) {
-            const hariDicari = urutanHari[(indeksHariIni + i) % 7];
-            const match = dataAktif.filter(r => r.hari === hariDicari);
-            if(match.length > 0) {
+        if (rowData && rowData.nama_peserta) {
+            const listPagi = uraiDataPeserta(rowData.nama_peserta, "Pagi");
+            const listSore = uraiDataPeserta(rowData.nama_peserta, "Sore");
+            const semuaNama = [...listPagi, ...listSore].join(', ');
+
+            if (semuaNama.trim() !== "") {
                 const label = i === 0 ? "Hari Ini" : i === 1 ? "Besok" : hariDicari;
-                const semuaNama = match.map(r => r.nama_peserta).join(', ');
                 elDOM.nextWorkoutInfo.innerHTML = `<strong>${label}</strong>: <span style="color: var(--primary)">${semuaNama}</span>`;
                 return;
             }
@@ -162,7 +180,7 @@ function renderNextWorkoutBanner(dataList) {
     elDOM.nextWorkoutInfo.innerText = "Belum ada jadwal latihan aktif minggu ini. Yuk daftar!";
 }
 
-// 8. ACTION: SIMPAN PESERTA BARU (MENGGUNAKAN LOGIKA SELECT -> INSERT/UPDATE ANTI-409)
+// 8. ACTION: SIMPAN PESERTA BARU (LOGIKA EDIT/UPDATE TOTAL MURNI ANTI BENTROK)
 async function saveParticipant() {
     const namaInput = elDOM.inputNama.value.trim();
     const hariPilihan = elDOM.pilihHari.value;
@@ -174,50 +192,50 @@ async function saveParticipant() {
     }
 
     try {
-        // A. Ambil data terbaru langsung dari baris spesifik ini
         const dataSegar = await loadData();
-        const rowLama = dataSegar.find(row => row.hari === hariPilihan && row.shift === shiftPilihan);
+        const barisEksis = dataSegar.find(row => row.hari === hariPilihan);
         
-        let arrayNamaLama = rowLama && rowLama.nama_peserta ? rowLama.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "") : [];
+        let listPagi = barisEksis ? uraiDataPeserta(barisEksis.nama_peserta, "Pagi") : [];
+        let listSore = barisEksis ? uraiDataPeserta(barisEksis.nama_peserta, "Sore") : [];
 
-        if (arrayNamaLama.length >= MAX_CAPACITY) {
-            showToast("Slot shift ini sudah penuh!", "error");
+        let listTarget = shiftPilihan === "Pagi" ? listPagi : listSore;
+
+        if (listTarget.length >= MAX_CAPACITY) {
+            showToast(`Slot Shift ${shiftPilihan} hari ${hariPilihan} sudah penuh!`, "error");
             return;
         }
 
-        if (arrayNamaLama.some(n => n.toLowerCase() === namaInput.toLowerCase())) {
-            showToast("Nama ini sudah terdaftar di shift tersebut!", "error");
+        if (listPagi.some(n => n.toLowerCase() === namaInput.toLowerCase()) || listSore.some(n => n.toLowerCase() === namaInput.toLowerCase())) {
+            showToast("Nama ini sudah terdaftar di hari tersebut!", "error");
             return;
         }
 
-        arrayNamaLama.push(namaInput);
-        const namaFinalString = arrayNamaLama.join(', ');
+        // Masukkan nama baru ke array shift yang dituju
+        if (shiftPilihan === "Pagi") listPagi.push(namaInput);
+        else listSore.push(namaInput);
 
-        // B. STRATEGI ANTI-409: Cek apakah data harinya sudah ada di database atau belum
-        const barisHariSama = dataSegar.find(row => row.hari === hariPilihan);
+        const teksBungkusFinal = bungkusDataPeserta(listPagi, listSore);
 
-        if (barisHariSama) {
-            // Jika baris hari tersebut sudah ada, kita pakai .update() bukan .upsert()/.insert()!
+        if (barisEksis) {
+            // JIKA BARIS HARI SUDAH ADA, EDIT BARIS ITU MENGGUNAKAN .update() (DIJAMIN LOLOS DARI EROR 409 CONFLICT)
             const { error } = await supabaseClient
                 .from('jadwal-gym')
-                .update({ shift: shiftPilihan, nama_peserta: namaFinalString })
+                .update({ nama_peserta: teksBungkusFinal })
                 .match({ hari: hariPilihan });
-            
             if (error) throw error;
         } else {
-            // Jika baris hari tersebut benar-benar baru, lakukan .insert() biasa
+            // JIKA HARI BELUM ADA SAMA SEKALI, BARU LAKUKAN INSERT
             const { error } = await supabaseClient
                 .from('jadwal-gym')
-                .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinalString }]);
-            
+                .insert([{ hari: hariPilihan, nama_peserta: teksBungkusFinal }]);
             if (error) throw error;
         }
         
         elDOM.inputNama.value = "";
         showToast(`Mantap! ${namaInput} berhasil masuk jadwal.`);
     } catch (err) {
-        showToast("Terjadi kesalahan saat menyimpan data!", "error");
-        console.error("Error Detail:", err);
+        showToast("Gagal menyimpan ke database!", "error");
+        console.error(err);
     }
 }
 
@@ -232,21 +250,24 @@ function initModalConfirm() {
         if (pendingDeleteData) {
             const { nama, hari, shift } = pendingDeleteData;
             const dataSegar = await loadData();
-            const rowLama = dataSegar.find(row => row.hari === hari && row.shift === shift);
+            const barisEksis = dataSegar.find(row => row.hari === hari);
 
-            if (rowLama && rowLama.nama_peserta) {
-                const arrayBaru = rowLama.nama_peserta.split(',')
-                    .map(n => n.trim())
-                    .filter(n => n.toLowerCase() !== nama.toLowerCase());
+            if (barisEksis) {
+                let listPagi = uraiDataPeserta(barisEksis.nama_peserta, "Pagi");
+                let listSore = uraiDataPeserta(barisEksis.nama_peserta, "Sore");
 
-                const namaFinalString = arrayBaru.join(', ');
+                if (shift === "Pagi") {
+                    listPagi = listPagi.filter(n => n.toLowerCase() !== nama.toLowerCase());
+                } else {
+                    listSore = listSore.filter(n => n.toLowerCase() !== nama.toLowerCase());
+                }
 
-                if (namaFinalString === "") {
-                    // Jika nama terakhir habis, hapus barisnya menggunakan .delete()
+                const teksBungkusFinal = bungkusDataPeserta(listPagi, listSore);
+
+                if (listPagi.length === 0 && listSore.length === 0) {
                     await supabaseClient.from('jadwal-gym').delete().match({ hari: hari });
                 } else {
-                    // Jika masih ada nama tersisa, pakai .update()
-                    await supabaseClient.from('jadwal-gym').update({ nama_peserta: namaFinalString }).match({ hari: hari });
+                    await supabaseClient.from('jadwal-gym').update({ nama_peserta: teksBungkusFinal }).match({ hari: hari });
                 }
                 showToast(`Jadwal ${nama} berhasil dibatalkan.`);
             }
@@ -287,7 +308,7 @@ async function initApp() {
     elDOM.inputNama.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveParticipant(); });
 
     const dataAwal = await loadData();
-    renderSchedule(dataAwal); // Selalu menggambar card jadwal di awal, aman dari crash!
+    renderSchedule(dataAwal);
 }
 
 initApp();
