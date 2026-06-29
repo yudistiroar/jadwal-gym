@@ -1,17 +1,20 @@
-// Function untuk mengatur tanggal otomatis dari hari Senin sampai Minggu
+// 1. Konfigurasi Jembatan Supabase (Sudah diisi pakai data aslimu)
+const SUPABASE_URL = "https://usavbkcbyybtmdgsvvxs.supabase.co"; 
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzYXZia2NieXlidG1kZ3N2dnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTg0NjgsImV4cCI6MjA5ODI5NDQ2OH0.QLNBsyIzAYLhK74Wku0XuWaQDD2i871pyWtiIOgnyS4"; 
+
+// Buka gerbang koneksi otomatis ke awan
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 2. Fungsi Kalender Otomatis (Senin - Minggu)
 function aturKalenderOtomatis() {
     const hariIni = new Date();
-    const nomorHariIni = hariIni.getDay(); // 0 = Minggu, 1 = Senin, 2 = Selasa, dst.
-    
-    // Hitung jarak menuju hari Senin di minggu ini
+    const nomorHariIni = hariIni.getDay(); 
     const selisihKeSenin = nomorHariIni === 0 ? -6 : 1 - nomorHariIni;
     
     const hariSenin = new Date(hariIni);
     hariSenin.setDate(hariIni.getDate() + selisihKeSenin);
     
     const daftarNamaHari = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-    
-    // Tulis Rentang Tanggal di Subtitle Atas Website
     const hariMinggu = new Date(hariSenin);
     hariMinggu.setDate(hariSenin.getDate() + 6);
     
@@ -19,52 +22,89 @@ function aturKalenderOtomatis() {
     document.getElementById('rentangTanggal').innerText = 
         `Periode Minggu Ini: ${hariSenin.toLocaleDateString('id-ID', opsiFormat)} s/d ${hariMinggu.toLocaleDateString('id-ID', opsiFormat)}`;
 
-    // Masukkan tanggal otomatis ke tiap baris kolom tabel Hari
     daftarNamaHari.forEach((namaHari, indeks) => {
         const tanggalTarget = new Date(hariSenin);
         tanggalTarget.setDate(hariSenin.getDate() + indeks);
         
         const elemenTgl = document.getElementById(`tgl-${namaHari}`);
         if (elemenTgl) {
-            const tanggalAngka = tanggalTarget.getDate();
-            const bulanAngka = tanggalTarget.getMonth() + 1; // Bulan dimulai dari 0
-            elemenTgl.innerHTML = `${namaHari}<br><small style="color: #a4b0be;">${tanggalAngka}/${bulanAngka}</small>`;
+            elemenTgl.innerHTML = `${namaHari}<br><small style="color: #a4b0be;">${tanggalTarget.getDate()}/${tanggalTarget.getMonth() + 1}</small>`;
         }
     });
 }
 
-// Jalankan fungsi kalender otomatis begitu website dibuka
-aturKalenderOtomatis();
+// 3. Fungsi Menarik Data dari Supabase ke Tabel HTML
+async function muatDataDariDatabase() {
+    const { data, error } = await supabaseClient
+        .from('jadwal_gym')
+        .select('*');
 
-// Logika Tombol Konfirmasi Ikut Gym
+    if (error) {
+        console.error("Gagal mengambil data:", error);
+        return;
+    }
+
+    // Reset kolom nama di tabel menjadi "-" dulu sebelum diisi data fresh
+    document.querySelectorAll('.nama-peserta').forEach(td => td.innerText = "-");
+
+    // Masukkan data dari internet ke baris tabel yang cocok
+    data.forEach(row => {
+        const idTarget = `peserta-${row.hari}-${row.shift}`;
+        const kolom = document.getElementById(idTarget);
+        if (kolom) {
+            kolom.innerText = row.nama_peserta;
+        }
+    });
+}
+
+// 4. Logika Tombol saat Diklik (Kirim Nama Baru ke Supabase)
 const tombolIkut = document.getElementById('tombolIkut');
-
-tombolIkut.addEventListener('click', function() {
+tombolIkut.addEventListener('click', async function() {
     const hariPilihan = document.getElementById('pilihHari').value;
     const shiftPilihan = document.getElementById('pilihShift').value;
     const namaInput = document.getElementById('inputNama').value.trim();
 
-    // Validasi input nama
     if (namaInput === "") {
         alert("Masukkan nama kamu dulu, bro!");
         return;
     }
 
-    // Cari ID target kolom peserta (Contoh: peserta-Senin-Pagi)
+    // Gabungkan nama kalau di shift itu sudah ada orang lain
     const idTarget = `peserta-${hariPilihan}-${shiftPilihan}`;
     const kolomPeserta = document.getElementById(idTarget);
+    let namaFinal = namaInput;
 
-    if (kolomPeserta) {
-        // Jika kolom masih kosong (-), ganti dengan nama baru. 
-        // Jika sudah ada isinya, tambahkan nama baru di belakangnya dipisah koma.
-        if (kolomPeserta.innerText === "-") {
-            kolomPeserta.innerText = namaInput;
-        } else {
-            kolomPeserta.innerText = kolomPeserta.innerText + ", " + namaInput;
-        }
-        
-        // Kosongkan form ketikan setelah sukses memasukkan nama
+    if (kolomPeserta && kolomPeserta.innerText !== "-") {
+        namaFinal = kolomPeserta.innerText + ", " + namaInput;
+    }
+
+    // Perbarui data di database Supabase
+    await supabaseClient
+        .from('jadwal_gym')
+        .delete()
+        .match({ hari: hariPilihan, shift: shiftPilihan });
+
+    const { error } = await supabaseClient
+        .from('jadwal_gym')
+        .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinal }]);
+
+    if (error) {
+        alert("Gagal menyimpan ke database!");
+        console.error(error);
+    } else {
         document.getElementById('inputNama').value = "";
-        alert(`Mantap! ${namaInput} berhasil gabung di shift ${shiftPilihan} hari ${hariPilihan}.`);
+        alert(`Mantap! ${namaInput} berhasil masuk database.`);
     }
 });
+
+// 5. FITUR UTAMA: Sinkronisasi Otomatis Real-time Tanpa Refresh!
+supabaseClient
+    .channel('schema-db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal_gym' }, () => {
+        muatDataDariDatabase(); // Jalankan fungsi penarik data tiap kali ada perubahan di awan
+    })
+    .subscribe();
+
+// Jalankan perintah dasar saat pertama kali web dibuka
+aturKalenderOtomatis();
+muatDataDariDatabase();
