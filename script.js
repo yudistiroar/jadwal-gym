@@ -7,7 +7,7 @@ const MAX_CAPACITY = 10;
 const DAFTAR_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 const DAFTAR_SHIFT = ["Pagi", "Sore"];
 
-// 2. DOM ELEMENT CACHING
+// 2. DOM ELEMENT CACHING (Menghindari Pemanggilan DOM Berulang)
 const elDOM = {
     rentangTanggal: document.getElementById('rentangTanggal'),
     inputNama: document.getElementById('inputNama'),
@@ -64,19 +64,19 @@ function setupCalendar() {
     });
 }
 
-// 5. LOAD DATA UTAMA DARI SUPABASE (Ditambahkan Try-Catch Agar Anti-Mogok)
+// 5. LOAD DATA UTAMA DARI SUPABASE (Kebal & Anti-Crash)
 async function loadData() {
     try {
         const { data, error } = await supabaseClient
             .from('jadwal-gym')
             .select('*');
         if (error) {
-            console.error("Supabase Error:", error);
+            console.error("Supabase Error saat Select:", error);
             return [];
         }
         return data || [];
     } catch (err) {
-        console.error("Network Error:", err);
+        console.error("Network Error saat Load:", err);
         return [];
     }
 }
@@ -94,10 +94,9 @@ function renderSchedule(dataList) {
 
         let blockShiftHTML = "";
         DAFTAR_SHIFT.forEach(shift => {
-            // Membaca baris data lama (bisa string gabungan koma maupun row tunggal)
+            // Cari data berdasarkan HARI saja agar aman dari aturan primary key lamamu
             const rowData = dataList.find(row => row.hari === hari && row.shift === shift);
             
-            // Pecah nama berdasarkan koma jika ada banyak nama dalam satu baris
             let arrayPeserta = [];
             if (rowData && rowData.nama_peserta) {
                 arrayPeserta = rowData.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "");
@@ -111,7 +110,7 @@ function renderSchedule(dataList) {
             if (jumlahPeserta === 0) {
                 tagsPesertaHTML = `<span class="empty-state">Belum ada peserta</span>`;
             } else {
-                arrayPeserta.forEach((nama, idx) => {
+                arrayPeserta.forEach((nama) => {
                     tagsPesertaHTML += `
                         <span class="participant-tag" data-nama="${nama}" data-hari="${hari}" data-shift="${shift}">
                             ${nama} <i class="fas fa-times" style="font-size: 0.7rem; opacity: 0.7;"></i>
@@ -163,7 +162,7 @@ function renderNextWorkoutBanner(dataList) {
     elDOM.nextWorkoutInfo.innerText = "Belum ada jadwal latihan aktif minggu ini. Yuk daftar!";
 }
 
-// 8. ACTION: SIMPAN PESERTA BARU (MENDUKUNG INTEGRASI DUA SISTEM TABEL)
+// 8. ACTION: SIMPAN PESERTA BARU (MENGGUNAKAN LOGIKA SELECT -> INSERT/UPDATE ANTI-409)
 async function saveParticipant() {
     const namaInput = elDOM.inputNama.value.trim();
     const hariPilihan = elDOM.pilihHari.value;
@@ -174,39 +173,51 @@ async function saveParticipant() {
         return;
     }
 
-    const dataSegar = await loadData();
-    const rowLama = dataSegar.find(row => row.hari === hariPilihan && row.shift === shiftPilihan);
-    
-    let arrayNamaLama = rowLama && rowLama.nama_peserta ? rowLama.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "") : [];
-
-    if (arrayNamaLama.length >= MAX_CAPACITY) {
-        showToast("Slot shift ini sudah penuh!", "error");
-        return;
-    }
-
-    if (arrayNamaLama.some(n => n.toLowerCase() === namaInput.toLowerCase())) {
-        showToast("Nama ini sudah terdaftar di shift tersebut!", "error");
-        return;
-    }
-
-    arrayNamaLama.push(namaInput);
-    const namaFinalString = arrayNamaLama.join(', ');
-
     try {
-        // AMAN & KEBL: Menggunakan skema gabungan upsert cerdas yang lolos dari pembatasan RLS / Primary Key lamamu!
-        const { error } = await supabaseClient
-            .from('jadwal-gym')
-            .upsert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinalString }], { onConflict: 'hari' });
+        // A. Ambil data terbaru langsung dari baris spesifik ini
+        const dataSegar = await loadData();
+        const rowLama = dataSegar.find(row => row.hari === hariPilihan && row.shift === shiftPilihan);
+        
+        let arrayNamaLama = rowLama && rowLama.nama_peserta ? rowLama.nama_peserta.split(',').map(n => n.trim()).filter(n => n !== "") : [];
 
-        if (error) {
-            // Jalankan jalur alternatif fallback jika skema tabel di Supabase sudah telanjur kamu ganti
-            await supabaseClient.from('jadwal-gym').insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaInput }]);
+        if (arrayNamaLama.length >= MAX_CAPACITY) {
+            showToast("Slot shift ini sudah penuh!", "error");
+            return;
+        }
+
+        if (arrayNamaLama.some(n => n.toLowerCase() === namaInput.toLowerCase())) {
+            showToast("Nama ini sudah terdaftar di shift tersebut!", "error");
+            return;
+        }
+
+        arrayNamaLama.push(namaInput);
+        const namaFinalString = arrayNamaLama.join(', ');
+
+        // B. STRATEGI ANTI-409: Cek apakah data harinya sudah ada di database atau belum
+        const barisHariSama = dataSegar.find(row => row.hari === hariPilihan);
+
+        if (barisHariSama) {
+            // Jika baris hari tersebut sudah ada, kita pakai .update() bukan .upsert()/.insert()!
+            const { error } = await supabaseClient
+                .from('jadwal-gym')
+                .update({ shift: shiftPilihan, nama_peserta: namaFinalString })
+                .match({ hari: hariPilihan });
+            
+            if (error) throw error;
+        } else {
+            // Jika baris hari tersebut benar-benar baru, lakukan .insert() biasa
+            const { error } = await supabaseClient
+                .from('jadwal-gym')
+                .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinalString }]);
+            
+            if (error) throw error;
         }
         
         elDOM.inputNama.value = "";
         showToast(`Mantap! ${namaInput} berhasil masuk jadwal.`);
     } catch (err) {
-        console.error(err);
+        showToast("Terjadi kesalahan saat menyimpan data!", "error");
+        console.error("Error Detail:", err);
     }
 }
 
@@ -224,7 +235,6 @@ function initModalConfirm() {
             const rowLama = dataSegar.find(row => row.hari === hari && row.shift === shift);
 
             if (rowLama && rowLama.nama_peserta) {
-                // Hapus HANYA nama yang dipilih dari deretan string koma
                 const arrayBaru = rowLama.nama_peserta.split(',')
                     .map(n => n.trim())
                     .filter(n => n.toLowerCase() !== nama.toLowerCase());
@@ -232,9 +242,11 @@ function initModalConfirm() {
                 const namaFinalString = arrayBaru.join(', ');
 
                 if (namaFinalString === "") {
-                    await supabaseClient.from('jadwal-gym').delete().match({ hari: hari, shift: shift });
+                    // Jika nama terakhir habis, hapus barisnya menggunakan .delete()
+                    await supabaseClient.from('jadwal-gym').delete().match({ hari: hari });
                 } else {
-                    await supabaseClient.from('jadwal-gym').upsert([{ hari: hari, shift: shift, nama_peserta: namaFinalString }], { onConflict: 'hari' });
+                    // Jika masih ada nama tersisa, pakai .update()
+                    await supabaseClient.from('jadwal-gym').update({ nama_peserta: namaFinalString }).match({ hari: hari });
                 }
                 showToast(`Jadwal ${nama} berhasil dibatalkan.`);
             }
@@ -256,7 +268,7 @@ elDOM.scheduleContainer.addEventListener('click', (event) => {
     }
 });
 
-// 10. REALTIME & INIT TRIGER
+// 10. REALTIME & INIT TRIGGER
 function setupRealtime() {
     supabaseClient
         .channel('schema-db-changes')
@@ -275,7 +287,7 @@ async function initApp() {
     elDOM.inputNama.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveParticipant(); });
 
     const dataAwal = await loadData();
-    renderSchedule(dataAwal); // Menggambar card meskipun data awal di Supabase masih kosong melompong!
+    renderSchedule(dataAwal); // Selalu menggambar card jadwal di awal, aman dari crash!
 }
 
 initApp();
