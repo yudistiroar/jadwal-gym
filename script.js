@@ -19,8 +19,11 @@ function aturKalenderOtomatis() {
     hariMinggu.setDate(hariSenin.getDate() + 6);
     
     const opsiFormat = { day: 'numeric', month: 'long', year: 'numeric' };
-    document.getElementById('rentangTanggal').innerText = 
-        `Periode Minggu Ini: ${hariSenin.toLocaleDateString('id-ID', opsiFormat)} s/d ${hariMinggu.toLocaleDateString('id-ID', opsiFormat)}`;
+    
+    const rentangEl = document.getElementById('rentangTanggal');
+    if (rentangEl) {
+        rentangEl.innerText = `Periode Minggu Ini: ${hariSenin.toLocaleDateString('id-ID', opsiFormat)} s/d ${hariMinggu.toLocaleDateString('id-ID', opsiFormat)}`;
+    }
 
     daftarNamaHari.forEach((namaHari, indeks) => {
         const tanggalTarget = new Date(hariSenin);
@@ -35,31 +38,35 @@ function aturKalenderOtomatis() {
 
 // 3. Fungsi Ambil Data dari Supabase dan Tampilkan ke Tabel HTML
 async function muatDataDariDatabase() {
-    const { data, error } = await supabaseClient
-        .from('jadwal-gym') // Sudah pakai strip sesuai image_afde7a.png
-        .select('*');
+    try {
+        const { data, error } = await supabaseClient
+            .from('jadwal-gym') // Menggunakan nama tabel strip sesuai database
+            .select('*');
 
-    if (error) {
-        console.error("Gagal mengambil data:", error);
-        return;
-    }
+        if (error) {
+            console.error("Gagal mengambil data:", error);
+            return;
+        }
 
-    // Reset semua kolom nama di tabel menjadi "-" dulu
-    document.querySelectorAll('.nama-peserta').forEach(td => td.innerText = "-");
+        // Reset semua kolom nama di tabel menjadi "-" dulu sebelum diisi data baru
+        document.querySelectorAll('.nama-peserta').forEach(td => td.innerText = "-");
 
-    // Isi data hasil tarikan dari database ke dalam tabel HTML
-    if (data) {
-        data.forEach(row => {
-            const idTarget = `peserta-${row.hari}-${row.shift}`;
-            const kolom = document.getElementById(idTarget);
-            if (kolom) {
-                kolom.innerText = row.nama_peserta;
-            }
-        });
+        // Isi data hasil tarikan dari database ke dalam tabel HTML
+        if (data) {
+            data.forEach(row => {
+                const idTarget = `peserta-${row.hari}-${row.shift}`;
+                const kolom = document.getElementById(idTarget);
+                if (kolom) {
+                    kolom.innerText = row.nama_peserta;
+                }
+            });
+        }
+    } catch (err) {
+        console.error("Terjadi error saat muat data:", err);
     }
 }
 
-// 4. Logika Tombol saat Diklik (Kirim Data ke Supabase)
+// 4. Logika Tombol saat Diklik (Kirim Data ke Supabase dengan sistem UPSERT)
 const tombolIkut = document.getElementById('tombolIkut');
 if (tombolIkut) {
     tombolIkut.addEventListener('click', async function() {
@@ -72,7 +79,6 @@ if (tombolIkut) {
             return;
         }
 
-        // Cek dulu apakah di hari & shift itu sudah ada orang yang daftar
         const idTarget = `peserta-${hariPilihan}-${shiftPilihan}`;
         const kolomPeserta = document.getElementById(idTarget);
         let namaFinal = namaInput;
@@ -82,27 +88,63 @@ if (tombolIkut) {
             namaFinal = kolomPeserta.innerText + ", " + namaInput;
         }
 
-        // Hapus data lama di shift tersebut (jika ada), lalu masukkan yang baru
-        await supabaseClient
-            .from('jadwal-gym')
-            .delete()
-            .match({ hari: hariPilihan, shift: shiftPilihan });
+        try {
+            // Menggunakan .upsert() dengan onConflict 'hari' agar otomatis menimpa jika Primary Key bertabrakan
+            const { error } = await supabaseClient
+                .from('jadwal-gym')
+                .upsert(
+                    [{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinal }],
+                    { onConflict: 'hari' }
+                );
 
-        const { error } = await supabaseClient
-            .from('jadwal-gym')
-            .insert([{ hari: hariPilihan, shift: shiftPilihan, nama_peserta: namaFinal }]);
-
-        if (error) {
-            alert("Gagal menyimpan ke database, periksa koneksi!");
-            console.error(error);
-        } else {
-            document.getElementById('inputNama').value = "";
-            alert(`Mantap! ${namaInput} berhasil masuk database.`);
+            if (error) {
+                alert("Gagal menyimpan ke database, periksa koneksi!");
+                console.error(error);
+            } else {
+                document.getElementById('inputNama').value = "";
+                alert(`Mantap! ${namaInput} berhasil masuk database.`);
+            }
+        } catch (err) {
+            console.error("Gagal mengirim data:", err);
         }
     });
 }
 
-// 5. Fitur Sinkronisasi Real-time Otomatis
+// 5. Fitur Klik Nama di Tabel untuk Menghapus / Membatalkan
+const tabelJadwal = document.querySelector('table');
+if (tabelJadwal) {
+    tabelJadwal.addEventListener('click', async function(event) {
+        if (event.target.classList.contains('nama-peserta') && event.target.innerText !== "-") {
+            const idKolom = event.target.id; 
+            const bagianId = idKolom.split("-");
+            const hariTarget = bagianId[1];
+            const shiftTarget = bagianId[2];
+
+            const konfirmasi = confirm(`Apakah kamu ingin menghapus semua nama di jadwal ${hariTarget} shift ${shiftTarget}?`);
+            
+            if (konfirmasi) {
+                try {
+                    // Hapus baris data tersebut di database Supabase
+                    const { error } = await supabaseClient
+                        .from('jadwal-gym')
+                        .delete()
+                        .match({ hari: hariTarget, shift: shiftTarget });
+
+                    if (error) {
+                        alert("Gagal menghapus data dari database!");
+                        console.error(error);
+                    } else {
+                        alert(`Jadwal ${hariTarget} ${shiftTarget} berhasil dikosongkan.`);
+                    }
+                } catch (err) {
+                    console.error("Gagal menghapus data:", err);
+                }
+            }
+        }
+    });
+}
+
+// 6. Fitur Sinkronisasi Real-time Otomatis
 supabaseClient
     .channel('schema-db-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'jadwal-gym' }, () => {
